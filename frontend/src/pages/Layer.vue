@@ -1,6 +1,6 @@
 <template>
   <div>
-    <h1>{{ props.layer }} 层 · 意图占用仅展示</h1>
+    <h1>{{ props.layer }} 层 · 只显示真实在架批次</h1>
     <span v-for="x in rows" :key="x.id" class="lot">{{ x.name }} ×{{ x.qty_remain }} · {{ x.expiry }}</span>
   </div>
 </template>

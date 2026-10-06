@@ -1,6 +1,6 @@
 <template>
   <div>
-    <h1>按临期消费 · 意图占用仅展示</h1>
+    <h1>按临期消费 · 未确认意图不占库存</h1>
     <select v-model.number="item_id"><option v-for="i in items" :value="i.id">{{ i.name }}</option></select>
     <input type="number" v-model.number="qty" />
     <button @click="go">FEFO 扣减</button>

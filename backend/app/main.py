@@ -7,7 +7,6 @@ from app import seed
 from app.db import connect
 from app.engines.fefo import consume_fefo, expire_lots
 from app.modules import replenish_intent as replenish
-from app.engines import intent_hold
 
 app = FastAPI(title="Pantryfifo", version="0.1.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -31,9 +30,6 @@ def fridge(layer: str | None = None):
     if layer:
         q += " AND items.layer=?"; args.append(layer)
     rows = [dict(r) for r in c.execute(q, args)]
-    pending = [dict(it) for it in c.execute(
-        "SELECT id, item_id, qty_short FROM replenish_intents WHERE status='pending'")]
-    rows = intent_hold.fridge_paint(rows, pending)
     c.close(); return rows
 
 @app.get("/api/alerts")
@@ -82,10 +78,7 @@ def consume(body: ConsumeIn):
     c = connect()
     lots = [dict(r) for r in c.execute(
         "SELECT * FROM lots WHERE item_id=? AND status='on_shelf' AND qty_remain>0", (body.item_id,))]
-    pending = [dict(it) for it in c.execute(
-        "SELECT id, item_id, qty_short FROM replenish_intents WHERE item_id=? AND status='pending'",
-        (body.item_id,))]
-    lots = intent_hold.mix_pending(lots, pending)
+    # 未确认意图不是批次:不进 FEFO 候选、不被扣减,扣减只看见真实在架批次。
     result = consume_fefo(lots, body.qty)
     if not result["ok"] and result["reason"] == "qty_non_positive":
         c.close(); raise HTTPException(400, result["reason"])

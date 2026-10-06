@@ -7,6 +7,7 @@ def db_path() -> Path:
     return d / "pantryfifo.db"
 
 def connect():
-    c = sqlite3.connect(db_path())
+    # busy timeout:并发确认同一条意图时后者等待前者落库,再经条件 UPDATE 判冲突,而不是直接 500
+    c = sqlite3.connect(db_path(), timeout=10)
     c.row_factory = sqlite3.Row
     return c

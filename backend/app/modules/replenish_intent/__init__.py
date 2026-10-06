@@ -80,11 +80,17 @@ def confirm(c, intent_id: int, expiry: str | None = None) -> dict:
     qty = float(row["qty_short"])
     if qty <= 0:
         raise ShortNonPositive()
-    # 额度唯一落点:pending → fulfilled 只生效一次;并发/重复确认命中 0 行。
-    c.execute(
-        "UPDATE replenish_intents SET status=? WHERE id=?",
-        (STATUS_FULFILLED, intent_id),
+    # 额度唯一落点:pending → fulfilled 条件 UPDATE 原子生效一次;
+    # 重复/并发确认命中 0 行 → 已补过,抛冲突,绝不再插第二批。
+    cur = c.execute(
+        "UPDATE replenish_intents SET status=? WHERE id=? AND status=?",
+        (STATUS_FULFILLED, intent_id, STATUS_PENDING),
     )
+    if cur.rowcount == 0:
+        # 重取 lot_id:并发下本次 SELECT 可能读到翻转前的旧快照
+        lot_id = c.execute(
+            "SELECT lot_id FROM replenish_intents WHERE id=?", (intent_id,)).fetchone()["lot_id"]
+        raise AlreadyFulfilled(intent_id, lot_id)
     # 新批 qty_in 用登记时的缺口量,与确认瞬间的下架/消费/他条入库无关。
     cur = c.execute(
         "INSERT INTO lots(item_id,qty_in,qty_remain,expiry,status,data_quality) VALUES (?,?,?,?,?,?)",
