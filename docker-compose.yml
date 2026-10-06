@@ -1,0 +1,17 @@
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "10300:10300"
+    volumes:
+      - pantryfifo_data:/data
+    environment:
+      DATA_DIR: /data
+  frontend:
+    build: ./frontend
+    ports:
+      - "5300:80"
+    depends_on:
+      - backend
+volumes:
+  pantryfifo_data:

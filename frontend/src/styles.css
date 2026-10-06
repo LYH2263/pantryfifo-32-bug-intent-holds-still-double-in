@@ -1,0 +1,36 @@
+:root {
+  --ice: #d9f1f2; --milk: #f7fbfb; --teal: #1f6f78; --alert: #c45c26; --line: #b7d4d6;
+  font-family: "DM Sans", system-ui, sans-serif; color: #16383c; background: var(--milk);
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: linear-gradient(180deg, #e7f6f7, var(--milk)); }
+h1,h2 { font-family: "Space Grotesk", sans-serif; }
+.wrap { max-width: 1000px; margin: 0 auto; padding: 0 12px 40px; }
+.alert-bar {
+  background: #ffe8d8; color: var(--alert); padding: 10px 16px; border-bottom: 1px solid #f0c9a8;
+  font-size: 14px; position: sticky; top: 0; z-index: 5;
+}
+.layer-tabs { display: flex; gap: 8px; padding: 12px 0; }
+.layer-tabs a {
+  padding: 8px 14px; border-radius: 999px; border: 1px solid var(--line); text-decoration: none; color: inherit;
+  background: #fff;
+}
+.layer-tabs a.router-link-active { background: var(--teal); color: #fff; border-color: var(--teal); }
+.fridge {
+  display: grid; grid-template-columns: 1fr; gap: 12px;
+  background: #cfe8ea; border: 3px solid #7fb0b5; border-radius: 20px; padding: 12px;
+}
+.shelf {
+  background: var(--milk); border-radius: 14px; min-height: 120px; padding: 12px;
+  border: 1px dashed var(--line);
+}
+.shelf h3 { margin: 0 0 8px; font-size: 14px; color: var(--teal); }
+.lot { display: inline-block; background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; margin: 4px; }
+button { background: var(--teal); color: #fff; border: 0; border-radius: 10px; padding: 8px 12px; font: inherit; cursor: pointer; }
+input, select { padding: 8px; border-radius: 8px; border: 1px solid var(--line); font: inherit; margin: 4px 0 10px; width: 100%; max-width: 320px; }
+.muted { color: #5a7a7e; font-size: 13px; }
+.intent { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin: 8px 0; }
+.intent.focus { border-color: var(--alert); box-shadow: 0 0 0 2px #ffe8d8; }
+.intent-confirm { display: flex; gap: 8px; align-items: center; margin-top: 6px; }
+.intent-confirm input { margin: 0; max-width: 180px; }
+.done { color: var(--teal); font-size: 14px; margin-top: 4px; }
