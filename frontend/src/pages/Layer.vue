@@ -1,7 +1,10 @@
 <template>
   <div>
     <h1>{{ props.layer }} 层 · 意图占用仅展示</h1>
-    <span v-for="x in rows" :key="x.id" class="lot">{{ x.name }} ×{{ x.qty_remain }} · {{ x.expiry }}</span>
+    <span v-for="x in rows" :key="x.id" class="lot" :class="{ 'lot--hold': x.is_intent }">
+      <template v-if="x.is_intent">补位占用 · {{ x.name }} ×{{ x.qty_remain }} {{ x.unit }}</template>
+      <template v-else>{{ x.name }} ×{{ x.qty_remain }} · {{ x.expiry }}</template>
+    </span>
   </div>
 </template>
 <script setup>

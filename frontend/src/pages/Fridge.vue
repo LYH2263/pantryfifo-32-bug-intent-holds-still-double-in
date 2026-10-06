@@ -5,7 +5,10 @@
     <div class="fridge">
       <section v-for="L in layers" :key="L" class="shelf">
         <h3>{{ label[L] }}</h3>
-        <span v-for="x in by(L)" :key="x.id" class="lot">{{ x.name }} ×{{ x.qty_remain }} · {{ x.expiry }}</span>
+        <span v-for="x in by(L)" :key="x.id" class="lot" :class="{ 'lot--hold': x.is_intent }">
+          <template v-if="x.is_intent">补位占用 · {{ x.name }} ×{{ x.qty_remain }} {{ x.unit }}</template>
+          <template v-else>{{ x.name }} ×{{ x.qty_remain }} · {{ x.expiry }}</template>
+        </span>
       </section>
     </div>
     <button style="margin-top:12px" @click="sweep">过期下架</button>

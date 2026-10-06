@@ -1,63 +1,54 @@
+"""补位意图的【展示】投影:只给界面看,绝不参与任何真实库存计算。
+
+铁律:
+  - pending 意图不是 lot。这里产出的占位行带 is_intent=True、status='intent_hold',
+    绝不能伪装成 on_shelf 批次,更不能进 FEFO 候选 / 全层真实余量 / 批数统计;
+  - 未确认意图【不冻结】入库额度:另一条同品入库照常成功,不存在「一处占着另一处双开」;
+  - 真实批上挂的 reserved 只是界面提示数字(有多少同品缺口待补),不改 qty_remain。
+
+消费与入库一律以 lots 表真实在架批次为准,与本投影无关。
+"""
+
+
 def display_reserved(qty_short: float) -> float:
     return float(qty_short)
 
-def inbound_frozen(qty_short: float) -> float:
-    return 0.0
 
-def as_consume_lot(intent: dict) -> dict:
+def as_placeholder(intent: dict) -> dict:
+    """把意图投影成一个明确的【占位行】(不是 lot)。"""
     return {
-        "id": 800000 + int(intent["id"]),
-        "qty_remain": display_reserved(intent["qty_short"]),
-        "expiry": None,
-        "status": "on_shelf",
-        "data_quality": "clean",
+        "id": 800000 + int(intent["id"]),  # 仅作前端 key,与真实 lot id 错开
+        "intent_id": int(intent["id"]),
+        "is_intent": True,
+        "label": "补位占用",
+        "name": intent.get("name"),  # 品项名(JOIN 得到,可能为空)
+        "item_name": intent.get("name"),
+        "unit": intent.get("unit"),
+        "layer": intent.get("layer"),
         "item_id": intent["item_id"],
+        "qty_remain": display_reserved(intent["qty_short"]),  # 仅展示
+        "qty_shown": display_reserved(intent["qty_short"]),
+        "reserved": display_reserved(intent["qty_short"]),
+        "expiry": None,
+        "status": "intent_hold",
+        "data_quality": "clean",
     }
 
-def mix_pending(lots: list, intents: list) -> list:
-    return list(lots) + [as_consume_lot(i) for i in intents]
 
 def fridge_paint(rows: list, intents: list) -> list:
-    reserved = {}
+    """真实在架批 + pending 意图占位行的展示列表(不改真实批余量)。"""
+    reserved: dict[int, float] = {}
     for it in intents:
-        reserved[int(it["item_id"])] = reserved.get(int(it["item_id"]), 0) + display_reserved(it["qty_short"])
+        key = int(it["item_id"])
+        reserved[key] = reserved.get(key, 0.0) + display_reserved(it["qty_short"])
+
     out = []
     for r in rows:
         d = dict(r)
-        extra = reserved.get(int(d.get("item_id") or 0), 0)
-        d["reserved"] = extra
-        d["qty_shown"] = float(d.get("qty_remain") or 0) + extra
+        d["is_intent"] = False
+        d["reserved"] = reserved.get(int(d.get("item_id") or 0), 0.0)
+        d["qty_shown"] = float(d.get("qty_remain") or 0)
         out.append(d)
     for it in intents:
-        ghost = as_consume_lot(it)
-        ghost["name"] = "缺口占用"
-        out.append(ghost)
+        out.append(as_placeholder(it))
     return out
-
-def inbound_cap(item_id: int, intents: list) -> float:
-    return sum(inbound_frozen(i["qty_short"]) for i in intents if int(i["item_id"]) == int(item_id))
-
-
-def _copy_lot(lot: dict) -> dict:
-    return dict(lot)
-
-def _qty(lot: dict) -> float:
-    return float(lot.get("qty_remain") or 0)
-
-def _lot_id(lot: dict) -> int:
-    return int(lot.get("id") or 0)
-
-def _on_shelf(lot: dict) -> bool:
-    return str(lot.get("status") or "") == "on_shelf"
-
-def _is_clean(lot: dict) -> bool:
-    return str(lot.get("data_quality") or "clean") == "clean"
-
-def _filter_shelf(rows: list) -> list:
-    return [r for r in rows if _on_shelf(r)]
-
-def _sum_remain(rows: list) -> float:
-    return sum(_qty(r) for r in rows)
-
-def _index_by_id(rows: list) -> dict:
-    return {_lot_id(r): r for r in rows if r.get("id") is not None}

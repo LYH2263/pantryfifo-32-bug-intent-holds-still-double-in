@@ -33,8 +33,16 @@ async function load() {
 async function confirm(i) {
   try {
     const r = await api('/intents/' + i.id + '/confirm', { method: 'POST', body: JSON.stringify({ expiry: expiry.value[i.id] }) })
-    msg.value = `意图 #${i.id} 已补入新批 #${r.lot_id}（×${r.qty}），全层可见`
-  } catch (e) { msg.value = '确认失败：' + e.message }
+    msg.value = `意图 #${r.intent_id} 已补入新批 #${r.lot_id}（×${r.qty}），全层可见`
+  } catch (e) {
+    let d = null
+    try { d = JSON.parse(e.message) } catch {}
+    if (d && d.reason === 'already_fulfilled') {
+      msg.value = `意图 #${d.intent_id} 已补入过（新批 #${d.lot_id ?? '?'}），不重复开批`
+    } else {
+      msg.value = '确认失败：' + e.message
+    }
+  }
   await load()
 }
 onMounted(load)

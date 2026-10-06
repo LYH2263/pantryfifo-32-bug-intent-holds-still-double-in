@@ -26,6 +26,7 @@ h1,h2 { font-family: "Space Grotesk", sans-serif; }
 }
 .shelf h3 { margin: 0 0 8px; font-size: 14px; color: var(--teal); }
 .lot { display: inline-block; background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; margin: 4px; }
+.lot--hold { background: #fff4e8; border: 1px dashed var(--alert); color: var(--alert); font-size: 13px; }
 button { background: var(--teal); color: #fff; border: 0; border-radius: 10px; padding: 8px 12px; font: inherit; cursor: pointer; }
 input, select { padding: 8px; border-radius: 8px; border: 1px solid var(--line); font: inherit; margin: 4px 0 10px; width: 100%; max-width: 320px; }
 .muted { color: #5a7a7e; font-size: 13px; }

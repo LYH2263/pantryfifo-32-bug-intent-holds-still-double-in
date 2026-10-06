@@ -1,13 +1,12 @@
-import json
-from datetime import date, datetime, timezone
+from datetime import date
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from app import seed
 from app.db import connect
-from app.engines.fefo import consume_fefo, expire_lots
 from app.modules import replenish_intent as replenish
 from app.engines import intent_hold
+from app import flows
 
 app = FastAPI(title="Pantryfifo", version="0.1.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -32,7 +31,9 @@ def fridge(layer: str | None = None):
         q += " AND items.layer=?"; args.append(layer)
     rows = [dict(r) for r in c.execute(q, args)]
     pending = [dict(it) for it in c.execute(
-        "SELECT id, item_id, qty_short FROM replenish_intents WHERE status='pending'")]
+        """SELECT r.id, r.item_id, r.qty_short, items.name, items.unit, items.layer
+           FROM replenish_intents r JOIN items ON items.id=r.item_id
+           WHERE r.status='pending'""")]
     rows = intent_hold.fridge_paint(rows, pending)
     c.close(); return rows
 
@@ -65,12 +66,11 @@ class LotIn(BaseModel):
 @app.post("/api/lots")
 def inbound(body: LotIn):
     c = connect()
-    item = c.execute("SELECT id FROM items WHERE id=?", (body.item_id,)).fetchone()
-    if not item: c.close(); raise HTTPException(404, "item")
-    cur = c.execute(
-        "INSERT INTO lots(item_id,qty_in,qty_remain,expiry,status,data_quality) VALUES (?,?,?,?,?,?)",
-        (body.item_id, body.qty, body.qty, body.expiry, "on_shelf", "clean"))
-    c.commit(); lid = cur.lastrowid; c.close(); return {"id": lid}
+    try:
+        out = flows.inbound_lot(c, body.item_id, body.qty, body.expiry)
+    except flows.ItemNotFound:
+        c.close(); raise HTTPException(404, "item")
+    c.commit(); c.close(); return out
 
 class ConsumeIn(BaseModel):
     item_id: int
@@ -80,36 +80,20 @@ class ConsumeIn(BaseModel):
 @app.post("/api/consume")
 def consume(body: ConsumeIn):
     c = connect()
-    lots = [dict(r) for r in c.execute(
-        "SELECT * FROM lots WHERE item_id=? AND status='on_shelf' AND qty_remain>0", (body.item_id,))]
-    pending = [dict(it) for it in c.execute(
-        "SELECT id, item_id, qty_short FROM replenish_intents WHERE item_id=? AND status='pending'",
-        (body.item_id,))]
-    lots = intent_hold.mix_pending(lots, pending)
-    result = consume_fefo(lots, body.qty)
-    if not result["ok"] and result["reason"] == "qty_non_positive":
-        c.close(); raise HTTPException(400, result["reason"])
-    if not result["ok"]:
-        # 短量失败:扣减不落地,全层余量保持失败前;只登记补位意图(品项+缺口量)。
-        intent_id = replenish.register(c, body.item_id, result["short"])
+    try:
+        result = flows.consume_item(c, body.item_id, body.qty, body.note)
+    except flows.QtyNonPositive:
+        c.close(); raise HTTPException(400, "qty_non_positive")
+    except flows.Shortage as e:
+        # 短量失败:扣减未落地(真实批余量保持失败前);提交本事务里登记的补位意图。
         c.commit(); c.close()
-        raise HTTPException(409, {**result, "item_id": body.item_id, "intent_id": intent_id})
-    for d in result["deductions"]:
-        c.execute("UPDATE lots SET qty_remain = qty_remain - ? WHERE id=?", (d["take"], d["lot_id"]))
-        rem = c.execute("SELECT qty_remain FROM lots WHERE id=?", (d["lot_id"],)).fetchone()["qty_remain"]
-        if rem <= 0:
-            c.execute("UPDATE lots SET status='consumed', qty_remain=0 WHERE id=?", (d["lot_id"],))
-    c.execute("INSERT INTO consumptions(note,result_json,created_at) VALUES (?,?,?)",
-              (body.note, json.dumps(result), datetime.now(timezone.utc).isoformat()))
+        raise HTTPException(409, {**e.result, "item_id": e.item_id, "intent_id": e.intent_id})
     c.commit(); c.close(); return result
 
 @app.post("/api/expire-sweep")
 def expire_sweep():
     c = connect()
-    lots = [dict(r) for r in c.execute("SELECT * FROM lots WHERE status='on_shelf'")]
-    ids = expire_lots(lots, date.today().isoformat())
-    for i in ids:
-        c.execute("UPDATE lots SET status='expired' WHERE id=?", (i,))
+    ids = flows.sweep_expired(c, date.today().isoformat())
     c.commit(); c.close(); return {"expired_ids": ids}
 
 @app.get("/api/intents")
